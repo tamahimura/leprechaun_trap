@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import time
 import threading
 from adafruit_crickit import crickit
