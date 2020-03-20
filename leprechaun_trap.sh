@@ -18,7 +18,7 @@ case "$1" in
     ;;
   stop)
     echo "Stopping garageserver.py"
-    pkill -f /usr/local/bin/leprechaun_trap.py
+    pkill -f /home/pi/leprechaun_trap/leprechaun_trap.py
     ;;
   *)
     echo "Usage: /etc/init.d/leprechaun_trap.sh {start|stop}"
