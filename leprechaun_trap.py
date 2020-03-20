@@ -1,6 +1,11 @@
 import time
 import threading
 from adafruit_crickit import crickit
+from enum import Enum
+class State(Enum):
+    ARMED = 1
+    TRIGGERED = 2
+    IDLE = 3
 
 # For signal control, we'll chat directly with seesaw, use 'ss' to shorted typing!
 ss = crickit.seesaw
@@ -19,15 +24,17 @@ drive_thread_terminate = 0
 def drive_thread_function():
     print("Drive thread: starting")
 
+    global event_counter
     local_counter = 0
-    #crickit.drive_1.fraction = 0.0
+    crickit.drive_1.fraction = 0.0
 
     # keep going until we are told to stop
+    global drive_thread_terminate
     while (drive_thread_terminate == 0):
 
         # wait for the next event
         while (local_counter >= event_counter):
-            print("waiting ", local_counter, " ", event_counter)
+            #print("waiting ", local_counter, " ", event_counter)
             time.sleep (0.5)
 
         local_counter = event_counter
@@ -41,32 +48,48 @@ def drive_thread_function():
 
     print("Drive thread: stopping")
 
+def case_armed(reading):
+    if reading:
+        print("MOTION DETECTED")
+        global event_counter
+        event_counter += 1
+        return State.TRIGGERED
+    return State.ARMED
+
+def case_triggered(reading):
+    print("IDLING")
+    return State.IDLE
+
+def case_idle(reading):
+    if not reading:
+        print("ARMED")
+        return State.ARMED
+    return State.IDLE
+
+fsm = {State.ARMED : case_armed,
+   State.TRIGGERED : case_triggered,
+        State.IDLE : case_idle
+}
+
 print("Initializing")
 
 # kick off the thread
 drive_thread = threading.Thread(target=drive_thread_function)
 drive_thread.start()
 
-# wait 5 seconds after start first, to let the PIR settle.
-time.sleep(5.0)
+# wait 10 seconds after start first, to let the PIR settle.
+time.sleep(10.0)
 print("Ready")
 
-last_read = 0
+current_state = State.IDLE
 current_read = 0
 while True:
     current_read = ss.digital_read(PIR_IN)
-    # if pin is high and last reading was not, we have an edge.
-    if (current_read and not last_read):
-        print("MOTION DETECTED")
-        event_counter += 1
-        last_read = 1
+    #print("current_read ", current_read)
+    current_state = fsm[current_state](current_read)
 
-    # otherwise if last reading was high, reset it, and wait an additional 2 seconds before we
-    # trigger again.
-    elif not current_read and last_read:
-        last_read = 0
-        time.sleep(2.0)
-    time.sleep(0.5)
+    # ticks / sec
+    time.sleep(0.1)
 
 # signal thread to terminate
 drive_thread_terminate = 1
